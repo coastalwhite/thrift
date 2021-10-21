@@ -575,14 +575,13 @@ void t_rs_generator::render_attributes_and_includes() {
   f_gen_ << "use std::rc::Rc;" << endl;
   f_gen_ << endl;
   f_gen_ << "use thrift::OrderedFloat;" << endl;
-  f_gen_ << "use thrift::{ApplicationError, ApplicationErrorKind, ProtocolError, ProtocolErrorKind, TThriftClient};" << endl;
+  f_gen_ << "use thrift::{ApplicationError, ApplicationErrorKind, ProtocolError, ProtocolErrorKind};" << endl;
   f_gen_ << "use thrift::protocol::{TFieldIdentifier, TListIdentifier, TMapIdentifier, TMessageIdentifier, TMessageType, TInputProtocol, TInputStreamProtocol, TOutputProtocol, TOutputStreamProtocol, TSetIdentifier, TStructIdentifier, TType};" << endl;
   f_gen_ << "use thrift::protocol::field_id;" << endl;
   f_gen_ << "use thrift::protocol::verify_expected_message_type;" << endl;
   f_gen_ << "use thrift::protocol::verify_expected_sequence_number;" << endl;
   f_gen_ << "use thrift::protocol::verify_expected_service_call;" << endl;
   f_gen_ << "use thrift::protocol::verify_required_field_exists;" << endl;
-  f_gen_ << "use thrift::server::TProcessor;" << endl;
   f_gen_ << endl;
 
   // add all the program includes
@@ -941,7 +940,7 @@ void t_rs_generator::render_enum_impl(t_enum* tenum, const string& enum_name) {
   f_gen_ << indent() << "#[allow(clippy::trivially_copy_pass_by_ref)]" << endl;
   f_gen_
     << indent()
-    << "pub fn write_to_out_protocol(&self, o_prot: &mut dyn TOutputProtocol) -> thrift::Result<usize> {"
+    << "pub fn write_to_out_protocol<T: TOutputProtocol>(&self, o_prot: &mut T) -> thrift::Result<usize> {"
     << endl;
   indent_up();
   f_gen_ << indent() << "o_prot.write_i32(self.0)" << endl;
@@ -960,7 +959,7 @@ void t_rs_generator::render_enum_impl(t_enum* tenum, const string& enum_name) {
 
   f_gen_
     << indent()
-    << "pub fn read_from_in_protocol(i_prot: &mut dyn TInputProtocol) -> thrift::Result<" << enum_name << "> {"
+    << "pub fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << enum_name << "> {"
     << endl;
   indent_up();
   f_gen_ << indent() << "let enum_value = i_prot.read_i32()?;" << endl;
@@ -1491,7 +1490,7 @@ void t_rs_generator::render_struct_write(
     f_gen_
     << indent()
     << visibility_qualifier(struct_type)
-    << "fn write_to_out_protocol(&self, o_prot: &mut dyn TOutputProtocol) -> thrift::Result<usize> {"
+    << "fn write_to_out_protocol<T: TOutputProtocol>(&self, o_prot: &mut T) -> thrift::Result<usize> {"
     << endl;
   } else {
     f_gen_
@@ -1540,7 +1539,7 @@ void t_rs_generator::render_union_write(const string &union_name, t_struct *tstr
   if (is_sync) {
     f_gen_
     << indent()
-    << "pub fn write_to_out_protocol(&self, o_prot: &mut dyn TOutputProtocol) -> thrift::Result<usize> {"
+    << "pub fn write_to_out_protocol<T: TOutputProtocol>(&self, o_prot: &mut T) -> thrift::Result<usize> {"
     << endl;
   } else {
     f_gen_
@@ -1845,7 +1844,7 @@ void t_rs_generator::render_struct_read(
     << visibility_qualifier(struct_type);
   if (is_sync) {
     f_gen_
-      << "fn read_from_in_protocol(i_prot: &mut dyn TInputProtocol) -> thrift::Result<" << struct_name << "> {"
+      << "fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << struct_name << "> {"
       << endl;
   } else {
     f_gen_
@@ -1980,7 +1979,7 @@ void t_rs_generator::render_union_read(const string &union_name, t_struct *tstru
   if (is_sync) {
     f_gen_
       << indent()
-      << "pub fn read_from_in_protocol(i_prot: &mut dyn TInputProtocol) -> thrift::Result<" << union_name << "> {"
+      << "pub fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {"
       << endl;
   } else {
     f_gen_
@@ -2792,7 +2791,7 @@ void t_rs_generator::render_sync_processor_definition_and_impl(t_service *tservi
 
   f_gen_
     << indent()
-    << "fn process(&self, i_prot: &mut dyn TInputProtocol, o_prot: &mut dyn TOutputProtocol) -> thrift::Result<usize> {"
+    << "fn process<T: TOutputProtocol>(&self, i_prot: &mut T, o_prot: &mut TOutputProtocol) -> thrift::Result<usize> {"
     << endl;
   indent_up();
 
@@ -2835,10 +2834,11 @@ void t_rs_generator::render_sync_process_delegation_functions(t_service *tservic
     f_gen_
       << indent()
       << "fn " << function_name
+      << "<I: TInputProtocol, O: TOutputProtocol>"
       << "(&self, "
       << "incoming_sequence_number: i32, "
-      << "i_prot: &mut dyn TInputProtocol, "
-      << "o_prot: &mut dyn TOutputProtocol) "
+      << "i_prot: &mut I, "
+      << "o_prot: &mut O) "
       << "-> thrift::Result<usize> {"
       << endl;
     indent_up();
