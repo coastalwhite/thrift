@@ -2071,7 +2071,12 @@ void t_rs_generator::render_union_read(const string &union_name, t_struct *tstru
   indent_down();
   f_gen_ << indent() << "} else {" << endl;
   indent_up();
-  f_gen_ << indent() << "Ok(ret.expect(\"return value should have been constructed\"))" << endl;
+  f_gen_ << indent() << "ret.ok_or_else(|| thrift::Error::Protocol(" << endl;
+  f_gen_ << indent() << "  ProtocolError::new(" << endl;
+  f_gen_ << indent() << "    ProtocolErrorKind::InvalidData," << endl;
+  f_gen_ << indent() << "    \"received no field for union from remote" + union_name + "\"" << endl;
+  f_gen_ << indent() << "  )" << endl;
+  f_gen_ << indent() << "))" << endl;
   indent_down();
   f_gen_ << indent() << "}" << endl;
 
