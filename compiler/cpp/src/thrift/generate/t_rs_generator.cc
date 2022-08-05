@@ -567,14 +567,15 @@ void t_rs_generator::render_attributes_and_includes() {
   // add standard includes
   f_gen_ << "use std::cell::RefCell;" << endl;
   f_gen_ << "use std::collections::{BTreeMap, BTreeSet};" << endl;
-  f_gen_ << "use std::convert::{From, TryFrom};" << endl;
+  f_gen_ << "use std::convert::{From, TryFrom, TryInto};" << endl;
   f_gen_ << "use std::default::Default;" << endl;
   f_gen_ << "use std::error::Error;" << endl;
   f_gen_ << "use std::fmt;" << endl;
   f_gen_ << "use std::fmt::{Display, Formatter};" << endl;
   f_gen_ << "use std::rc::Rc;" << endl;
   f_gen_ << endl;
-  f_gen_ << "use thrift::OrderedFloat;" << endl;
+  f_gen_ << "use crate::thrift;" << endl;
+  f_gen_ << endl;
   f_gen_ << "use thrift::{ApplicationError, ApplicationErrorKind, ProtocolError, ProtocolErrorKind};" << endl;
   f_gen_ << "use thrift::protocol::{TFieldIdentifier, TListIdentifier, TMapIdentifier, TMessageIdentifier, TMessageType, TInputProtocol, TInputStreamProtocol, TOutputProtocol, TOutputStreamProtocol, TSetIdentifier, TStructIdentifier, TType};" << endl;
   f_gen_ << "use thrift::protocol::field_id;" << endl;
@@ -1724,7 +1725,7 @@ void t_rs_generator::render_list_write(const string &list_var, bool list_var_is_
     << "o_prot.write_list_begin("
     << "&TListIdentifier::new("
     << to_rust_field_type_enum(elem_type) << ", "
-    << list_var << ".len() as i32" << ")"
+    << list_var << ".len().try_into()?" << ")"
     << ")"
     << ending
     << endl;
@@ -1753,7 +1754,7 @@ void t_rs_generator::render_set_write(const string &set_var, bool set_var_is_ref
     << "o_prot.write_set_begin("
     << "&TSetIdentifier::new("
     << to_rust_field_type_enum(elem_type) << ", "
-    << set_var << ".len() as i32" << ")"
+    << set_var << ".len().try_into()?" << ")"
     << ")"
     << ending
     << endl;
@@ -1784,7 +1785,7 @@ void t_rs_generator::render_map_write(const string &map_var, bool map_var_is_ref
     << "&TMapIdentifier::new("
     << to_rust_field_type_enum(key_type) << ", "
     << to_rust_field_type_enum(val_type) << ", "
-    << map_var << ".len() as i32)"
+    << map_var << ".len().try_into()?)"
     << ")"
     << ending
     << endl;
