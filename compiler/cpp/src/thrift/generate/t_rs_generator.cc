@@ -195,10 +195,6 @@ private:
   // user-defined exception to be properly handled as Rust errors.
   void render_exception_struct_error_trait_impls(const string& struct_name, t_struct* tstruct);
 
-  // Write the implementations for the `Default`. This trait allows you to specify only the fields you want
-  // and use `..Default::default()` to fill in the rest.
-  void render_struct_default_trait_impl(const string& struct_name, t_struct* tstruct);
-
   // Write the function that serializes a struct to its wire representation. If `struct_type` is `T_ARGS`
   // then all fields are considered "required", if not, the default optionality is used.
   // `is_sync` denotes whether to write the sync or async version of the code.
@@ -544,46 +540,19 @@ void t_rs_generator::init_generator() {
 }
 
 void t_rs_generator::render_attributes_and_includes() {
-  // turn off some compiler/clippy warnings
-
-  // code always includes BTreeMap/BTreeSet/OrderedFloat
-  f_gen_ << "#![allow(unused_imports)]" << endl;
-  // code might not include imports from crates
-  f_gen_ << "#![allow(unused_extern_crates)]" << endl;
-  // constructors take *all* struct parameters, which can trigger the "too many arguments" warning
-  // some auto-gen'd types can be deeply nested. clippy recommends factoring them out which is hard to autogen
-  // FIXME: re-enable the 'vec_box' lint see: [THRIFT-5364](https://issues.apache.org/jira/browse/THRIFT-5364)
-  // This can happen because we automatically generate a Vec<Box<Type>> when the type is a typedef
-  // and it's a forward typedef. This (typedef + forward typedef) can happen in two situations:
-  // 1. When the type is recursive
-  // 2. When you define types out of order
-  f_gen_ << "#![allow(clippy::too_many_arguments, clippy::type_complexity, clippy::vec_box)]" << endl;
-  // prevent rustfmt from running against this file
-  // lines are too long, code is (thankfully!) not visual-indented, etc.
-  // can't use #[rustfmt::skip] see: https://github.com/rust-lang/rust/issues/54726
-  f_gen_ << "#![cfg_attr(rustfmt, rustfmt_skip)]" << endl;
-  f_gen_ << endl;
+  f_gen_ << "#![allow(clippy::too_many_arguments)]" << endl << endl;
 
   // add standard includes
-  f_gen_ << "use std::cell::RefCell;" << endl;
-  f_gen_ << "use std::collections::{BTreeMap, BTreeSet};" << endl;
-  f_gen_ << "use std::convert::{From, TryFrom, TryInto};" << endl;
+  f_gen_ << "use std::convert::{From, TryInto};" << endl;
   f_gen_ << "use std::default::Default;" << endl;
-  f_gen_ << "use std::error::Error;" << endl;
-  f_gen_ << "use std::fmt;" << endl;
-  f_gen_ << "use std::fmt::{Display, Formatter};" << endl;
-  f_gen_ << "use std::rc::Rc;" << endl;
   f_gen_ << endl;
   f_gen_ << "use crate::thrift;" << endl;
   f_gen_ << endl;
-  f_gen_ << "use thrift::{ApplicationError, ApplicationErrorKind, ProtocolError, ProtocolErrorKind};" << endl;
-  f_gen_ << "use thrift::protocol::{TFieldIdentifier, TListIdentifier, TMapIdentifier, TMessageIdentifier, TMessageType, TInputProtocol, TOutputProtocol, TSetIdentifier, TStructIdentifier, TType};" << endl;
+  f_gen_ << "use thrift::{ProtocolError, ProtocolErrorKind};" << endl;
+  f_gen_ << "use thrift::protocol::{TFieldIdentifier, TListIdentifier, TInputProtocol, TOutputProtocol, TStructIdentifier, TType};" << endl;
   f_gen_ << "#[cfg(feature = \"async\")]" << endl;
   f_gen_ << "use thrift::protocol::{TInputStreamProtocol, TOutputStreamProtocol};" << endl;
   f_gen_ << "use thrift::protocol::field_id;" << endl;
-  f_gen_ << "use thrift::protocol::verify_expected_message_type;" << endl;
-  f_gen_ << "use thrift::protocol::verify_expected_sequence_number;" << endl;
-  f_gen_ << "use thrift::protocol::verify_expected_service_call;" << endl;
   f_gen_ << "use thrift::protocol::verify_required_field_exists;" << endl;
   f_gen_ << endl;
 
@@ -1079,9 +1048,6 @@ void t_rs_generator::render_struct(
   render_type_comment(struct_name);
   render_struct_definition(struct_name, tstruct, struct_type);
   render_struct_impl(struct_name, tstruct, struct_type);
-  if (struct_type == t_rs_generator::T_REGULAR || struct_type == t_rs_generator::T_EXCEPTION) {
-    render_struct_default_trait_impl(struct_name, tstruct);
-  }
   if (struct_type == t_rs_generator::T_EXCEPTION) {
     render_exception_struct_error_trait_impls(struct_name, tstruct);
   }
@@ -1092,12 +1058,18 @@ void t_rs_generator::render_struct_definition(
   t_struct* tstruct,
   t_rs_generator::e_struct_type struct_type
 ) {
-  render_rustdoc((t_doc*) tstruct);
-  f_gen_ << "#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]" << endl;
-  f_gen_ << visibility_qualifier(struct_type) << "struct " << struct_name << " {" << endl;
 
   // render the members
   vector<t_field*> members = tstruct->get_sorted_members();
+
+  render_rustdoc((t_doc*) tstruct);
+  if (members.empty()) {
+    f_gen_ << "#[derive(Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]" << endl;
+  } else {
+    f_gen_ << "#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]" << endl;
+  }
+  f_gen_ << visibility_qualifier(struct_type) << "struct " << struct_name << " {" << endl;
+
   if (!members.empty()) {
     indent_up();
 
@@ -1152,49 +1124,6 @@ void t_rs_generator::render_exception_struct_error_trait_impls(const string& str
       << "\"remote service threw " << tstruct->get_name() << "\"" // use *original* name
       << ")"
       << endl;
-  indent_down();
-  f_gen_ << indent() << "}" << endl;
-  indent_down();
-  f_gen_ << "}" << endl;
-  f_gen_ << endl;
-}
-
-void t_rs_generator::render_struct_default_trait_impl(const string& struct_name, t_struct* tstruct) {
-  bool has_required_field = false;
-
-  const vector<t_field*>& members = tstruct->get_sorted_members();
-  vector<t_field*>::const_iterator members_iter;
-  for (members_iter = members.begin(); members_iter != members.end(); ++members_iter) {
-    t_field* member = *members_iter;
-    if (!is_optional(member->get_req())) {
-      has_required_field = true;
-      break;
-    }
-  }
-
-  if (has_required_field) {
-    return;
-  }
-
-  f_gen_ << "impl Default for " << struct_name << " {" << endl;
-  indent_up();
-  f_gen_ << indent() << "fn default() -> Self {" << endl;
-  indent_up();
-
-  if (members.empty()) {
-    f_gen_ << indent() << struct_name << "{}" << endl;
-  } else {
-    f_gen_ << indent() << struct_name << "{" << endl;
-    indent_up();
-    for (members_iter = members.begin(); members_iter != members.end(); ++members_iter) {
-      t_field *member = (*members_iter);
-      string member_name(rust_field_name(member));
-      f_gen_ << indent() << member_name << ": " << opt_in_req_out_value(member->get_type()) << "," << endl;
-    }
-    indent_down();
-    f_gen_ << indent() << "}" << endl;
-  }
-
   indent_down();
   f_gen_ << indent() << "}" << endl;
   indent_down();
@@ -1897,29 +1826,34 @@ void t_rs_generator::render_struct_read(
   f_gen_ << indent() << "}" << endl;
 
   // now read all the fields found
-  f_gen_ << indent() << "let field_id = field_id(&field_ident)?;" << endl;
-  f_gen_ << indent() << "match field_id {" << endl; // start match
-  indent_up();
-
-  for (members_iter = members.begin(); members_iter != members.end(); ++members_iter) {
-    t_field* tfield = (*members_iter);
-    f_gen_ << indent() << rust_safe_field_id(tfield->get_key()) << " => {" << endl;
+  if (members.size() == 0) {
+    f_gen_ << indent() << "let _ = field_id(&field_ident)?;" << endl;
+    f_gen_ << indent() << "i_prot.skip(field_ident.field_type)" << ending << endl;
+  } else {
+    f_gen_ << indent() << "let field_id = field_id(&field_ident)?;" << endl;
+    f_gen_ << indent() << "match field_id {" << endl; // start match
     indent_up();
-    render_type_read("val", tfield->get_type(), false, is_sync);
-    f_gen_ << indent() << struct_field_read_temp_variable(tfield) << " = Some(val);" << endl;
+
+    for (members_iter = members.begin(); members_iter != members.end(); ++members_iter) {
+      t_field* tfield = (*members_iter);
+      f_gen_ << indent() << rust_safe_field_id(tfield->get_key()) << " => {" << endl;
+      indent_up();
+      render_type_read("val", tfield->get_type(), false, is_sync);
+      f_gen_ << indent() << struct_field_read_temp_variable(tfield) << " = Some(val);" << endl;
+      indent_down();
+      f_gen_ << indent() << "}," << endl;
+    }
+
+    // default case (skip fields)
+    f_gen_ << indent() << "_ => {" << endl;
+    indent_up();
+    f_gen_ << indent() << "i_prot.skip(field_ident.field_type)" << ending << endl;
     indent_down();
     f_gen_ << indent() << "}," << endl;
+    indent_down();
+    f_gen_ << indent() << "};" << endl; // finish match
   }
 
-  // default case (skip fields)
-  f_gen_ << indent() << "_ => {" << endl;
-  indent_up();
-  f_gen_ << indent() << "i_prot.skip(field_ident.field_type)" << ending << endl;
-  indent_down();
-  f_gen_ << indent() << "}," << endl;
-
-  indent_down();
-  f_gen_ << indent() << "};" << endl; // finish match
   f_gen_ << indent() << "i_prot.read_field_end()" << ending << endl;
   indent_down();
   f_gen_ << indent() << "}" << endl; // finish loop
