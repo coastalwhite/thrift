@@ -546,12 +546,16 @@ void t_rs_generator::render_attributes_and_includes() {
   f_gen_ << "use std::convert::{From, TryInto};" << endl;
   f_gen_ << "use std::default::Default;" << endl;
   f_gen_ << endl;
+
+  f_gen_ << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << "use async_trait::async_trait;" << endl;
+
   f_gen_ << "use crate::thrift;" << endl;
   f_gen_ << endl;
   f_gen_ << "use thrift::{ProtocolError, ProtocolErrorKind};" << endl;
-  f_gen_ << "use thrift::protocol::{TFieldIdentifier, TListIdentifier, TInputProtocol, TOutputProtocol, TStructIdentifier, TType};" << endl;
+  f_gen_ << "use thrift::protocol::{ReadThrift, TFieldIdentifier, TListIdentifier, TInputProtocol, TOutputProtocol, TStructIdentifier, TType};" << endl;
   f_gen_ << "#[cfg(feature = \"async\")]" << endl;
-  f_gen_ << "use thrift::protocol::{TInputStreamProtocol, TOutputStreamProtocol};" << endl;
+  f_gen_ << "use thrift::protocol::{AsyncReadThrift, TInputStreamProtocol, TOutputStreamProtocol};" << endl;
   f_gen_ << "use thrift::protocol::field_id;" << endl;
   f_gen_ << "use thrift::protocol::verify_required_field_exists;" << endl;
   f_gen_ << endl;
@@ -929,28 +933,38 @@ void t_rs_generator::render_enum_impl(t_enum* tenum, const string& enum_name) {
   f_gen_ << indent() << "o_prot.write_i32(self.0).await" << endl;
   indent_down();
   f_gen_ << indent() << "}" << endl;
+  indent_down();
+  f_gen_ << "}" << endl;
+  f_gen_ << endl;
 
+  f_gen_ << "impl ReadThrift for " << enum_name << " {" << endl;
+  indent_up();
   f_gen_
     << indent()
-    << "pub fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << enum_name << "> {"
+    << "fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << enum_name << "> {"
     << endl;
   indent_up();
   f_gen_ << indent() << "let enum_value = i_prot.read_i32()?;" << endl;
   f_gen_ << indent() << "Ok(" << enum_name << "::from(enum_value)" << ")" << endl;
   indent_down();
   f_gen_ << indent() << "}" << endl;
+  indent_down();
+  f_gen_ << "}" << endl;
+  f_gen_ << endl;
 
   f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[async_trait]" << endl;
+  f_gen_ << "impl AsyncReadThrift for " << enum_name << " {" << endl;
+  indent_up();
   f_gen_
     << indent()
-    << "pub async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << enum_name << "> {"
+    << "async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << enum_name << "> {"
     << endl;
   indent_up();
   f_gen_ << indent() << "let enum_value = i_prot.read_i32().await?;" << endl;
   f_gen_ << indent() << "Ok(" << enum_name << "::from(enum_value)" << ")" << endl;
   indent_down();
   f_gen_ << indent() << "}" << endl;
-
   indent_down();
   f_gen_ << "}" << endl;
   f_gen_ << endl;
@@ -1143,8 +1157,22 @@ void t_rs_generator::render_struct_impl(
     render_struct_constructor(struct_name, tstruct, struct_type);
   }
 
-  render_struct_read(struct_name, tstruct, struct_type, true);
-  render_struct_read(struct_name, tstruct, struct_type, false);
+  f_gen_ << endl;
+  f_gen_ << indent() << "pub fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << struct_name << "> {" << endl;
+  indent_up();
+  f_gen_ << indent() << "ReadThrift::read_from_in_protocol(i_prot)" << endl;
+  indent_down();
+  f_gen_ << indent() << "}" << endl;
+  f_gen_ << endl;
+
+  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "pub async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << struct_name << "> {" << endl;
+  indent_up();
+  f_gen_ << indent() << "AsyncReadThrift::stream_from_in_protocol(i_prot).await" << endl;
+  indent_down();
+  f_gen_ << indent() << "}" << endl;
+  f_gen_ << endl;
+
   render_struct_write(tstruct, struct_type, true);
   render_struct_write(tstruct, struct_type, false);
 
@@ -1152,6 +1180,22 @@ void t_rs_generator::render_struct_impl(
     render_result_struct_to_result_method(tstruct);
   }
 
+  indent_down();
+  f_gen_ << "}" << endl;
+  f_gen_ << endl;
+
+  f_gen_ << "impl ReadThrift for " << struct_name << " {" << endl;
+  indent_up();
+  render_struct_read(struct_name, tstruct, struct_type, true);
+  indent_down();
+  f_gen_ << "}" << endl;
+  f_gen_ << endl;
+
+  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[async_trait]" << endl;
+  f_gen_ << "impl AsyncReadThrift for " << struct_name << " {" << endl;
+  indent_up();
+  render_struct_read(struct_name, tstruct, struct_type, false);
   indent_down();
   f_gen_ << "}" << endl;
   f_gen_ << endl;
@@ -1390,11 +1434,41 @@ void t_rs_generator::render_union_impl(const string& union_name, t_struct* tstru
   f_gen_ << "impl " << union_name << " {" << endl;
   indent_up();
 
-  render_union_read(union_name, tstruct, true);
-  render_union_read(union_name, tstruct, false);
+  f_gen_ << endl;
+  f_gen_ << indent() << "pub fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {" << endl;
+  indent_up();
+  f_gen_ << indent() << "ReadThrift::read_from_in_protocol(i_prot)" << endl;
+  indent_down();
+  f_gen_ << indent() << "}" << endl;
+  f_gen_ << endl;
+
+  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "pub async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {" << endl;
+  indent_up();
+  f_gen_ << indent() << "AsyncReadThrift::stream_from_in_protocol(i_prot).await" << endl;
+  indent_down();
+  f_gen_ << indent() << "}" << endl;
+  f_gen_ << endl;
+
   render_union_write(union_name, tstruct, true);
   render_union_write(union_name, tstruct, false);
 
+  indent_down();
+  f_gen_ << "}" << endl;
+  f_gen_ << endl;
+
+  f_gen_ << "impl ReadThrift for " << union_name << " {" << endl;
+  indent_up();
+  render_union_read(union_name, tstruct, true);
+  indent_down();
+  f_gen_ << "}" << endl;
+  f_gen_ << endl;
+
+  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[async_trait]" << endl;
+  f_gen_ << "impl AsyncReadThrift for " << union_name << " {" << endl;
+  indent_up();
+  render_union_read(union_name, tstruct, false);
   indent_down();
   f_gen_ << "}" << endl;
   f_gen_ << endl;
@@ -1778,14 +1852,11 @@ void t_rs_generator::render_struct_read(
   if (is_sync) {
     f_gen_
       << indent()
-      << visibility_qualifier(struct_type)
       << "fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << struct_name << "> {"
       << endl;
   } else {
-    f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
     f_gen_
       << indent()
-      << visibility_qualifier(struct_type)
       << "async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << struct_name << "> {"
       << endl;
   };
@@ -1922,13 +1993,12 @@ void t_rs_generator::render_union_read(const string &union_name, t_struct *tstru
   if (is_sync) {
     f_gen_
       << indent()
-      << "pub fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {"
+      << "fn read_from_in_protocol<T: TInputProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {"
       << endl;
   } else {
-    f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
     f_gen_
       << indent()
-      << "pub async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {"
+      << "async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {"
       << endl;
   };
 
@@ -2124,24 +2194,7 @@ void t_rs_generator::render_list_read(t_list *tlist, const string &list_var, boo
     ending = ".await?;";
   };
 
-  f_gen_ << indent() << "let list_ident = i_prot.read_list_begin()" << ending << endl;
-  f_gen_
-    << indent()
-    << "let mut " << list_var << ": " << to_rust_type((t_type*) tlist)
-    << " = Vec::with_capacity(list_ident.size as usize);"
-    << endl;
-  f_gen_ << indent() << "for _ in 0..list_ident.size {" << endl;
-
-  indent_up();
-
-  string list_elem_var = tmp("list_elem_");
-  render_type_read(list_elem_var, elem_type, false, is_sync);
-  f_gen_ << indent() << list_var << ".push(" << list_elem_var << ");" << endl;
-
-  indent_down();
-
-  f_gen_ << indent() << "}" << endl;
-  f_gen_ << indent() << "i_prot.read_list_end()" << ending << endl;
+  f_gen_ << indent() << "let val = i_prot.read_list()" << ending << endl;
 }
 
 // Construct the rust representation of a set from the wire.
