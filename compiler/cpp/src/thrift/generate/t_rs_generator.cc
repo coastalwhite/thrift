@@ -547,14 +547,14 @@ void t_rs_generator::render_attributes_and_includes() {
   f_gen_ << "use std::default::Default;" << endl;
   f_gen_ << endl;
 
-  f_gen_ << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_ << "use async_trait::async_trait;" << endl;
 
   f_gen_ << "use crate::thrift;" << endl;
   f_gen_ << endl;
   f_gen_ << "use thrift::{ProtocolError, ProtocolErrorKind};" << endl;
   f_gen_ << "use thrift::protocol::{ReadThrift, TFieldIdentifier, TListIdentifier, TInputProtocol, TOutputProtocol, TStructIdentifier, TType};" << endl;
-  f_gen_ << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_ << "use thrift::protocol::{AsyncReadThrift, TInputStreamProtocol, TOutputStreamProtocol};" << endl;
   f_gen_ << "use thrift::protocol::field_id;" << endl;
   f_gen_ << "use thrift::protocol::verify_required_field_exists;" << endl;
@@ -924,7 +924,7 @@ void t_rs_generator::render_enum_impl(t_enum* tenum, const string& enum_name) {
   f_gen_ << indent() << "}" << endl;
 
   f_gen_ << indent() << "#[allow(clippy::trivially_copy_pass_by_ref)]" << endl;
-  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_
     << indent()
     << "pub async fn write_to_out_stream_protocol<T: TOutputStreamProtocol>(&self, o_prot: &mut T) -> thrift::Result<usize> {"
@@ -952,7 +952,7 @@ void t_rs_generator::render_enum_impl(t_enum* tenum, const string& enum_name) {
   f_gen_ << "}" << endl;
   f_gen_ << endl;
 
-  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_ << indent() << "#[async_trait]" << endl;
   f_gen_ << "impl AsyncReadThrift for " << enum_name << " {" << endl;
   indent_up();
@@ -1165,7 +1165,7 @@ void t_rs_generator::render_struct_impl(
   f_gen_ << indent() << "}" << endl;
   f_gen_ << endl;
 
-  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_ << indent() << "pub async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << struct_name << "> {" << endl;
   indent_up();
   f_gen_ << indent() << "AsyncReadThrift::stream_from_in_protocol(i_prot).await" << endl;
@@ -1191,7 +1191,7 @@ void t_rs_generator::render_struct_impl(
   f_gen_ << "}" << endl;
   f_gen_ << endl;
 
-  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_ << indent() << "#[async_trait]" << endl;
   f_gen_ << "impl AsyncReadThrift for " << struct_name << " {" << endl;
   indent_up();
@@ -1442,7 +1442,7 @@ void t_rs_generator::render_union_impl(const string& union_name, t_struct* tstru
   f_gen_ << indent() << "}" << endl;
   f_gen_ << endl;
 
-  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_ << indent() << "pub async fn stream_from_in_protocol<T: TInputStreamProtocol>(i_prot: &mut T) -> thrift::Result<" << union_name << "> {" << endl;
   indent_up();
   f_gen_ << indent() << "AsyncReadThrift::stream_from_in_protocol(i_prot).await" << endl;
@@ -1464,7 +1464,7 @@ void t_rs_generator::render_union_impl(const string& union_name, t_struct* tstru
   f_gen_ << "}" << endl;
   f_gen_ << endl;
 
-  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+  f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
   f_gen_ << indent() << "#[async_trait]" << endl;
   f_gen_ << "impl AsyncReadThrift for " << union_name << " {" << endl;
   indent_up();
@@ -1501,7 +1501,7 @@ void t_rs_generator::render_struct_write(
     << "fn write_to_out_protocol<T: TOutputProtocol>(&self, o_prot: &mut T) -> thrift::Result<usize> {"
     << endl;
   } else {
-    f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+    f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
     f_gen_
       << indent()
       << visibility_qualifier(struct_type)
@@ -1551,7 +1551,7 @@ void t_rs_generator::render_union_write(const string &union_name, t_struct *tstr
     << "pub fn write_to_out_protocol<T: TOutputProtocol>(&self, o_prot: &mut T) -> thrift::Result<usize> {"
     << endl;
   } else {
-    f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
+    f_gen_ << indent() << "#[cfg(any(feature = \"async_futures\", feature = \"async_tokio\"))]" << endl;
     f_gen_
       << indent()
       << "pub async fn write_to_out_stream_protocol<T: TOutputStreamProtocol>(&self, o_prot: &mut T) -> thrift::Result<usize> {"
