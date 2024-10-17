@@ -554,7 +554,7 @@ void t_rs_generator::render_attributes_and_includes() {
   f_gen_ << endl;
   f_gen_ << "use thrift::{ProtocolError, ProtocolErrorKind};" << endl;
   f_gen_ << "use thrift::protocol::{ReadThrift, TFieldIdentifier, TListIdentifier, TInputProtocol, TOutputProtocol, TStructIdentifier, TType};" << endl;
-  f_gen_ << "#[cfg(feature = \"async\"))]" << endl;
+  f_gen_ << "#[cfg(feature = \"async\")]" << endl;
   f_gen_ << "use thrift::protocol::{AsyncReadThrift, TInputStreamProtocol, TOutputStreamProtocol};" << endl;
   f_gen_ << "use thrift::protocol::field_id;" << endl;
   f_gen_ << "use thrift::protocol::verify_required_field_exists;" << endl;
@@ -952,7 +952,7 @@ void t_rs_generator::render_enum_impl(t_enum* tenum, const string& enum_name) {
   f_gen_ << "}" << endl;
   f_gen_ << endl;
 
-  f_gen_ << indent() << "#[cfg(feature = \"async\"))]" << endl;
+  f_gen_ << indent() << "#[cfg(feature = \"async\")]" << endl;
   f_gen_ << indent() << "#[async_trait]" << endl;
   f_gen_ << "impl AsyncReadThrift for " << enum_name << " {" << endl;
   indent_up();
